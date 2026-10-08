@@ -2,9 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="description" content="4K monitors (24–52 inch) sold in Denmark: combined review rating against the cheapest Danish price, with the Pareto frontier and best-value picks.">
+<meta name="description" content="4K monitors (24–52 inch) sold in Denmark: combined review rating against the cheapest Danish price, with the Pareto frontier and best-value picks. Best value today: Samsung Odyssey OLED G81SF S27FG810S at 4.999 kr.">
+<meta name="author" content="Idea: Mark Ruvald Pedersen">
+<meta property="og:type" content="website">
+<meta property="og:title" content="4K Monitor Value Frontier">
+<meta property="og:description" content="4K monitors (24–52 inch) sold in Denmark: combined review rating against the cheapest Danish price, with the Pareto frontier and best-value picks. Best value today: Samsung Odyssey OLED G81SF S27FG810S at 4.999 kr.">
+<meta property="og:url" content="https://lhjelm-dk.github.io/monitor-frontier/">
+<meta property="og:image" content="https://lhjelm-dk.github.io/monitor-frontier/og.png?v=2026-10-08">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <title>4K Monitor Value Frontier</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231c5cab%22/%3E%3Cpath d=%22M6 24h6v-5h6v-6h4v-6h4%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.5%22 stroke-linejoin=%22round%22/%3E%3Ccircle cx=%2222%22 cy=%2213%22 r=%223%22 fill=%22%23eb6834%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -151,6 +161,10 @@ tr.na td { color: var(--muted); }
 .credits { color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 14px; }
 .credits p { max-width: none; }
 
+/* byline & staleness */
+.byline { margin: -4px 0 0; color: var(--ink-2); font-size: 14px; }
+.stale { border: 1px solid var(--bad); border-left: 4px solid var(--bad); background: var(--surface); border-radius: 10px; padding: 12px 16px; color: var(--ink); }
+
 /* explainer */
 .explain-grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 24px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
 @media (max-width: 760px) { .explain-grid { grid-template-columns: 1fr; } }
@@ -214,12 +228,14 @@ details.box[open] summary { margin-bottom: 10px; }
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">24–52″ · 4K and up · prices in DKK · data collected <span id="date"></span></div>
+    <div class="eyebrow">24–52″ · 4K and up · DKK prices from <span id="date"></span></div>
     <h1>4K Monitor Value Frontier</h1>
+    <p class="byline">Idea by <b>Mark Ruvald Pedersen</b></p>
     <p class="notice public-only">This public version shows a combined rating only. Individual review scores are not republished: follow the links to read each review. Not affiliated with RTINGS, PriceRunner or any shop; prices change constantly, so check the shop before buying.</p>
     <p class="lede"><span id="countLine"></span> Ratings combine RTINGS with <span id="srcCount"></span> other review sources; prices are the cheapest Danish shop on PriceRunner.dk or CS MEGASTORE, shipping included.</p>
   </header>
 
+  <div class="stale" id="stale" hidden role="alert"></div>
   <div class="alerts" id="alerts" hidden></div>
 
   <section class="shortlist" aria-live="polite">
@@ -408,7 +424,7 @@ details.box[open] summary { margin-bottom: 10px; }
     </div>
   </section>
   <footer class="credits public-only">
-    <p>Ratings are combined from RTINGS.com reviews and <span id="creditSources"></span>; prices from PriceRunner.dk and csmegastore.dk, collected <span id="creditDate"></span>. All trademarks belong to their owners. This page is an independent price/quality comparison and may contain errors.</p>
+    <p>Idea by Mark Ruvald Pedersen. Ratings are combined from RTINGS.com reviews and <span id="creditSources"></span>; prices from PriceRunner.dk and csmegastore.dk, collected <span id="creditDate"></span>. All trademarks belong to their owners. This page is an independent price/quality comparison and may contain errors.</p>
   </footer>
 </div>
 
@@ -418,6 +434,7 @@ const CORR = {};
 const WORDCAL = {"residual_sd": 0.19642116398555076};
 const CFG = {"MIN_PAIRS": 5, "SHRINK_K": 10};
 const COLLECTED = "2026-10-08";
+const PRICES_DATE = "2026-10-08";  // date of the newest price snapshot (price_history.csv)
 const ALERTS = [];
 const DECISION = {"best_value": {"monitor": "Samsung Odyssey OLED G81SF S27FG810S", "price": 4999.0, "rating": 8.98}, "best_value_share": 0.56, "clear": true};  // decision.py's result for the default settings
 const PUBLIC = true;      // public build: combined rating only, no per-source or RTINGS scores in the data
@@ -1125,8 +1142,18 @@ function multiples() {
 }
 
 /* ---------- static text ---------- */
+function staleCheck() {
+  // warn when the newest prices are 2+ days old (the daily refresh failed or stopped)
+  const d = PRICES_DATE || COLLECTED, age = Math.floor((Date.now() - new Date(d + "T12:00:00").getTime()) / 864e5);
+  const el = document.getElementById("stale");
+  if (age >= 2) {
+    el.hidden = false;
+    el.innerHTML = `<b>Prices may be out of date.</b> They were last updated on ${esc(d)}, ${age} days ago; the daily refresh has not run since. Check the shop before buying.`;
+  }
+}
 function staticText() {
-  document.getElementById("date").textContent = COLLECTED;
+  document.getElementById("date").textContent = PRICES_DATE || COLLECTED;
+  staleCheck();
   const nr = DATA.filter(d => d.in_rtings).length, no = DATA.filter(d => !d.in_rtings).length;
   document.getElementById("countLine").textContent = `${nr} monitors from 24″ to 52″ with 4K or higher resolution that RTINGS has tested (TVs left out), plus ${no} that RTINGS has not tested but other reviewers have.`;
   document.getElementById("srcCount").textContent = PUBLIC ? PUBLIC_SOURCES.length : SOURCE_KEYS.length;
